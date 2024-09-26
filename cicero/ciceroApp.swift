@@ -6,12 +6,29 @@
 //
 
 import SwiftUI
+import Firebase
+import FirebaseAuth
 
 @main
-struct ciceroApp: App {
+struct CiceroApp: App {
+    @StateObject var session = SessionStore()
+
+    init() {
+        FirebaseApp.configure()
+    }
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            if session.isLoggedIn {
+                // Main app interface
+                ContentView()
+                    .environmentObject(session)
+            } else {
+                // Show authentication flow
+                AuthenticationView()
+                    .environmentObject(session)
+            }
         }
     }
 }
+

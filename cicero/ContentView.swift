@@ -8,17 +8,21 @@
 import SwiftUI
 
 struct ContentView: View {
+    @EnvironmentObject var session: SessionStore
+
     var body: some View {
         VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
-        }
-        .padding()
-    }
-}
+            Text("Welcome to Cicero!")
+                .font(.largeTitle)
+                .padding()
 
-#Preview {
-    ContentView()
+            Button(action: {
+                session.signOut()
+            }) {
+                Text("Sign Out")
+                    .foregroundColor(.red)
+            }
+            .padding()
+        }
+    }
 }
