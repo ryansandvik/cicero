@@ -17,23 +17,23 @@ struct SignUpView: View {
     @State private var confirmPassword = ""
     @State private var errorMessage = ""
     @State private var showingError = false
-
+    
     var body: some View {
         VStack(spacing: 20) {
             TextField("Full Name", text: $fullName)
                 .textFieldStyle(RoundedBorderTextFieldStyle())
-
+            
             TextField("Email Address", text: $email)
                 .keyboardType(.emailAddress)
                 .autocapitalization(.none)
                 .textFieldStyle(RoundedBorderTextFieldStyle())
-
+            
             SecureField("Password", text: $password)
                 .textFieldStyle(RoundedBorderTextFieldStyle())
-
+            
             SecureField("Confirm Password", text: $confirmPassword)
                 .textFieldStyle(RoundedBorderTextFieldStyle())
-
+            
             Button(action: signUp) {
                 Text("Sign Up")
                     .frame(maxWidth: .infinity)
@@ -42,7 +42,7 @@ struct SignUpView: View {
                     .foregroundColor(.white)
                     .cornerRadius(8)
             }
-
+            
             if showingError {
                 Text(errorMessage)
                     .foregroundColor(.red)
@@ -51,7 +51,7 @@ struct SignUpView: View {
         }
         .padding()
     }
-
+    
     func signUp() {
         // Input validation
         guard !fullName.isEmpty else {
@@ -59,26 +59,31 @@ struct SignUpView: View {
             showingError = true
             return
         }
-
+        
         guard !email.isEmpty else {
             errorMessage = "Please enter your email."
             showingError = true
             return
         }
-
+        
         guard password == confirmPassword else {
             errorMessage = "Passwords do not match."
             showingError = true
             return
         }
-
+        
         // Create user with Firebase Authentication
         Auth.auth().createUser(withEmail: email, password: password) { authResult, error in
             if let error = error {
+                // Print the full error details to the console
+                print("Sign-up error: \(error.localizedDescription)")
+                print("Error details: \(error)")
+                
+                // Update UI with error message
                 errorMessage = error.localizedDescription
                 showingError = true
             } else {
-                // Save additional user info to Firestore
+                // Proceed with storing user data in Firestore
                 if let uid = authResult?.user.uid {
                     let db = Firestore.firestore()
                     db.collection("users").document(uid).setData([
@@ -86,16 +91,16 @@ struct SignUpView: View {
                         "email": email
                     ]) { error in
                         if let error = error {
+                            print("Firestore error: \(error.localizedDescription)")
                             errorMessage = "User created but failed to save name: \(error.localizedDescription)"
                             showingError = true
                         } else {
                             // Navigate to the main app interface
-                            // This could involve setting an @EnvironmentObject or similar
+                            // For example, set a logged-in state or dismiss the view
                         }
                     }
                 }
             }
         }
     }
-
 }
