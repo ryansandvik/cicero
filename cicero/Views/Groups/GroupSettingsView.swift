@@ -5,6 +5,13 @@
 //  Created by Ryan Sandvik on 9/27/24.
 //
 
+//
+//  GroupSettingsView.swift
+//  YourAppName
+//
+//  Created by Your Name on Date.
+//
+
 import SwiftUI
 import FirebaseAuth
 import FirebaseFirestore
@@ -153,7 +160,6 @@ struct GroupSettingsView: View {
         }
     }
 
-    // MARK: - Functions
 
     func isAdmin() -> Bool {
         return group.ownerId == Auth.auth().currentUser?.uid
@@ -171,28 +177,14 @@ struct GroupSettingsView: View {
 
     func uploadGroupImage() {
         guard let image = selectedImage, let groupId = group.id else { return }
-        let storageRef = Storage.storage().reference().child("groupImages/\(groupId).jpg")
-        guard let imageData = image.jpegData(compressionQuality: 0.75) else { return }
 
-        let metadata = StorageMetadata()
-        metadata.contentType = "image/jpeg"
-
-        storageRef.putData(imageData, metadata: metadata) { metadata, error in
-            if let error = error {
+        ImageUploader.uploadGroupImage(image: image, groupId: groupId) { result in
+            switch result {
+            case .success(let imageURL):
+                updateGroupImageURL(imageURL)
+            case .failure(let error):
                 errorMessage = "Failed to upload image: \(error.localizedDescription)"
                 showingError = true
-                return
-            }
-
-            storageRef.downloadURL { url, error in
-                if let error = error {
-                    errorMessage = "Failed to retrieve image URL: \(error.localizedDescription)"
-                    showingError = true
-                    return
-                }
-                if let url = url {
-                    updateGroupImageURL(url.absoluteString)
-                }
             }
         }
     }

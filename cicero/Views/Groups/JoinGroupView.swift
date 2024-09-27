@@ -13,15 +13,14 @@ import FirebaseAuth
 import FirebaseFirestore
 
 struct JoinGroupView: View {
-    @State private var groupId = ""
-    @State private var errorMessage = ""
-    @State private var showingError = false
+    @State private var groupIdInput: String = ""
+    @State private var errorMessage: String = ""
+    @State private var showingError: Bool = false
     @Environment(\.presentationMode) var presentationMode
-    @EnvironmentObject var session: SessionStore
 
     var body: some View {
         VStack(spacing: 20) {
-            TextField("Group ID or Invitation Code", text: $groupId)
+            TextField("Enter Group ID", text: $groupIdInput)
                 .textFieldStyle(RoundedBorderTextFieldStyle())
                 .padding(.horizontal)
 
@@ -41,50 +40,69 @@ struct JoinGroupView: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
             }
+
+            Spacer()
         }
         .padding()
         .navigationTitle("Join Group")
+        .alert(isPresented: $showingError) {
+            Alert(title: Text("Error"), message: Text(errorMessage), dismissButton: .default(Text("OK")))
+        }
     }
 
+    // MARK: - Functions
+
     func joinGroup() {
-        guard !groupId.isEmpty else {
+        let trimmedGroupId = groupIdInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        guard !trimmedGroupId.isEmpty else {
             errorMessage = "Please enter a group ID."
             showingError = true
             return
         }
 
-        guard let userId = Auth.auth().currentUser?.uid else {
-            errorMessage = "User not authenticated."
-            showingError = true
-            return
-        }
-
         let db = Firestore.firestore()
-        let groupRef = db.collection("groups").document(groupId)
+        let groupRef = db.collection("groups").document(trimmedGroupId)
 
         groupRef.getDocument { document, error in
-            if let document = document, document.exists {
-                let member = Member(userId: userId, role: "member")
-                do {
-                    try groupRef.collection("members").document(userId)
-                        .setData(from: member) { error in
-                            if let error = error {
-                                errorMessage = "Failed to join group: \(error.localizedDescription)"
-                                showingError = true
-                            } else {
-                                showingError = false
-                                presentationMode.wrappedValue.dismiss()
-                            }
-                        }
-                } catch {
-                    errorMessage = "Error joining group: \(error.localizedDescription)"
-                    showingError = true
-                }
-            } else {
+            if let error = error {
+                errorMessage = "Failed to find group: \(error.localizedDescription)"
+                showingError = true
+                return
+            }
+
+            guard let document = document, document.exists else {
                 errorMessage = "Group not found. Please check the ID."
                 showingError = true
+                return
+            }
+
+            // Check if the user is already a member
+            if let membersDict = document.data()?["members"] as? [String: Bool],
+               let userId = Auth.auth().currentUser?.uid,
+               membersDict[userId] == true {
+                errorMessage = "You are already a member of this group."
+                showingError = true
+                return
+            }
+
+            // Add the user to the group's members
+            guard let userId = Auth.auth().currentUser?.uid else {
+                errorMessage = "User not authenticated."
+                showingError = true
+                return
+            }
+
+            groupRef.updateData([
+                "members.\(userId)": true
+            ]) { error in
+                if let error = error {
+                    errorMessage = "Failed to join group: \(error.localizedDescription)"
+                    showingError = true
+                } else {
+                    presentationMode.wrappedValue.dismiss()
+                }
             }
         }
     }
 }
-

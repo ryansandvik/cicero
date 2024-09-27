@@ -11,12 +11,22 @@
 import Foundation
 import FirebaseFirestore
 
-struct Group: Identifiable, Codable {
-    @DocumentID var id: String? // Group ID
-    var name: String // Now short ID
+struct Group: Identifiable, Equatable {
+    var id: String? // Group ID (short ID)
+    var name: String
     var description: String
     var ownerId: String
     var createdAt: Date
     var imageURL: String?
-    var originalId: String? // Store the original Firestore document ID
+    var originalId: String?
+
+    static func == (lhs: Group, rhs: Group) -> Bool {
+        return lhs.id == rhs.id &&
+            lhs.name == rhs.name &&
+            lhs.description == rhs.description &&
+            lhs.ownerId == rhs.ownerId &&
+            lhs.createdAt == rhs.createdAt &&
+            lhs.imageURL == rhs.imageURL &&
+            lhs.originalId == rhs.originalId
+    }
 }

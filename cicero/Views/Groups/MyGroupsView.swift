@@ -26,7 +26,7 @@ struct MyGroupsView: View {
                 List(groups) { group in
                     NavigationLink(destination: GroupDetailView(group: group)) {
                         HStack {
-                            // Use AsyncImage here
+                            // Group Image
                             if let imageURL = group.imageURL, let url = URL(string: imageURL) {
                                 AsyncImage(url: url) { phase in
                                     if let image = phase.image {
@@ -70,6 +70,7 @@ struct MyGroupsView: View {
                             }
                             .padding(.leading, 8)
                         }
+                        .padding(.vertical, 8)
                     }
                 }
                 .listStyle(PlainListStyle())
@@ -118,6 +119,8 @@ struct MyGroupsView: View {
         }
     }
 
+    // MARK: - Functions
+
     func startListening() {
         guard let userId = Auth.auth().currentUser?.uid else {
             errorMessage = "User not authenticated."
@@ -144,13 +147,16 @@ struct MyGroupsView: View {
                         let imageURL = data["imageURL"] as? String
                         let originalId = data["originalId"] as? String
 
+                        // Append a timestamp to the imageURL to force update (cache busting)
+                        let updatedImageURL = imageURL != nil ? "\(imageURL!)?v=\(Int(Date().timeIntervalSince1970))" : nil
+
                         return Group(
                             id: groupId,
                             name: name,
                             description: description,
                             ownerId: ownerId,
                             createdAt: createdAt,
-                            imageURL: imageURL,
+                            imageURL: updatedImageURL,
                             originalId: originalId
                         )
                     }
@@ -158,9 +164,7 @@ struct MyGroupsView: View {
             }
     }
 
-
     func stopListening() {
         listener?.remove()
     }
 }
-

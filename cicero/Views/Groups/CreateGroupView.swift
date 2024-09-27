@@ -5,10 +5,16 @@
 //  Created by Ryan Sandvik on 9/26/24.
 //
 
+//
+//  CreateGroupView.swift
+//  YourAppName
+//
+//  Created by Your Name on Date.
+//
+
 import SwiftUI
 import FirebaseAuth
 import FirebaseFirestore
-import FirebaseStorage
 
 struct CreateGroupView: View {
     @State private var groupName = ""
@@ -95,72 +101,47 @@ struct CreateGroupView: View {
         }
 
         let db = Firestore.firestore()
-
-        // Generate a short group ID
         let groupId = generateShortGroupId()
 
-        // Handle image upload if an image is selected
-        if let image = selectedImage {
-            uploadGroupImage(image: image, groupId: groupId) { result in
-                switch result {
-                case .success(let imageURL):
-                    saveGroupData(groupId: groupId, imageURL: imageURL)
-                case .failure(let error):
-                    errorMessage = "Failed to upload image: \(error.localizedDescription)"
-                    showingError = true
-                }
-            }
-        } else {
-            // No image selected
-            saveGroupData(groupId: groupId, imageURL: "")
-        }
-    }
-
-    func saveGroupData(groupId: String, imageURL: String) {
-        guard let userId = Auth.auth().currentUser?.uid else { return }
-
-        let groupData: [String: Any] = [
+        // Create the group data without the imageURL initially
+        var groupData: [String: Any] = [
             "name": groupName,
             "description": groupDescription,
             "ownerId": userId,
             "createdAt": Timestamp(),
             "members": [userId: true],
-            "imageURL": imageURL
+            "imageURL": "" // Placeholder; will update after image upload
         ]
 
-        let db = Firestore.firestore()
+        // Save the group data to Firestore
         db.collection("groups").document(groupId).setData(groupData) { error in
             if let error = error {
                 errorMessage = "Failed to create group: \(error.localizedDescription)"
                 showingError = true
             } else {
-                showingError = false
-                presentationMode.wrappedValue.dismiss()
-            }
-        }
-    }
-
-    func uploadGroupImage(image: UIImage, groupId: String, completion: @escaping (Result<String, Error>) -> Void) {
-        let storageRef = Storage.storage().reference().child("groupImages/\(groupId).jpg")
-        guard let imageData = image.jpegData(compressionQuality: 0.75) else {
-            completion(.failure(NSError(domain: "ImageConversionError", code: -1, userInfo: nil)))
-            return
-        }
-
-        let metadata = StorageMetadata()
-        metadata.contentType = "image/jpeg"
-
-        storageRef.putData(imageData, metadata: metadata) { metadata, error in
-            if let error = error {
-                completion(.failure(error))
-                return
-            }
-
-            storageRef.downloadURL { url, error in
-                if let error = error {
-                    completion(.failure(error))
-                } else if let downloadURL = url {
-                    completion(.success(downloadURL.absoluteString))
+                // Now upload the image if selected
+                if let image = selectedImage {
+                    ImageUploader.uploadGroupImage(image: image, groupId: groupId) { result in
+                        switch result {
+                        case .success(let imageURL):
+                            // Update the group document with the imageURL
+                            db.collection("groups").document(groupId).updateData(["imageURL": imageURL]) { error in
+                                if let error = error {
+                                    errorMessage = "Failed to upload image URL: \(error.localizedDescription)"
+                                    showingError = true
+                                } else {
+                                    // Successfully created group with image
+                                    presentationMode.wrappedValue.dismiss()
+                                }
+                            }
+                        case .failure(let error):
+                            errorMessage = "Failed to upload image: \(error.localizedDescription)"
+                            showingError = true
+                        }
+                    }
+                } else {
+                    // No image selected, dismiss view
+                    presentationMode.wrappedValue.dismiss()
                 }
             }
         }
@@ -171,3 +152,4 @@ struct CreateGroupView: View {
         return String((0..<6).map { _ in characters.randomElement()! })
     }
 }
+
