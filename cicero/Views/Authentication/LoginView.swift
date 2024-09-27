@@ -5,7 +5,6 @@
 //  Created by Ryan Sandvik on 9/26/24.
 //
 
-
 import SwiftUI
 import Firebase
 import FirebaseAuth
@@ -23,8 +22,7 @@ struct LoginView: View {
                 .autocapitalization(.none)
                 .textFieldStyle(RoundedBorderTextFieldStyle())
 
-            SecureField("Password", text: $password)
-                .textFieldStyle(RoundedBorderTextFieldStyle())
+            PasswordField(password: $password)
 
             Button(action: login) {
                 Text("Log In")
@@ -49,6 +47,7 @@ struct LoginView: View {
         .padding()
     }
 
+    // Function to handle user login
     func login() {
         // Input validation
         guard !email.isEmpty else {
@@ -59,16 +58,18 @@ struct LoginView: View {
 
         // Sign in with Firebase Authentication
         Auth.auth().signIn(withEmail: email, password: password) { authResult, error in
-            if let error = error {
-                errorMessage = error.localizedDescription
+            if let error = error as NSError? {
+                // Use the custom error message function from AuthErrorHelper
+                errorMessage = customErrorMessage(for: error)
                 showingError = true
             } else {
-                // Navigate to the main app interface
+                // Proceed to main app interface
+                showingError = false
             }
         }
     }
 
-
+    // Function to handle password reset
     func resetPassword() {
         guard !email.isEmpty else {
             errorMessage = "Please enter your email to reset password."
@@ -77,8 +78,9 @@ struct LoginView: View {
         }
 
         Auth.auth().sendPasswordReset(withEmail: email) { error in
-            if let error = error {
-                errorMessage = error.localizedDescription
+            if let error = error as NSError? {
+                // Use the custom error message function for the reset flow
+                errorMessage = customErrorMessage(for: error)
                 showingError = true
             } else {
                 errorMessage = "A password reset email has been sent."
@@ -86,5 +88,4 @@ struct LoginView: View {
             }
         }
     }
-
 }

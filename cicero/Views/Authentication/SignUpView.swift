@@ -5,7 +5,6 @@
 //  Created by Ryan Sandvik on 9/26/24.
 //
 
-
 import SwiftUI
 import Firebase
 import FirebaseAuth
@@ -17,7 +16,7 @@ struct SignUpView: View {
     @State private var confirmPassword = ""
     @State private var errorMessage = ""
     @State private var showingError = false
-    
+
     var body: some View {
         VStack(spacing: 20) {
             TextField("Full Name", text: $fullName)
@@ -27,13 +26,13 @@ struct SignUpView: View {
                 .keyboardType(.emailAddress)
                 .autocapitalization(.none)
                 .textFieldStyle(RoundedBorderTextFieldStyle())
-            
-            SecureField("Password", text: $password)
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-            
-            SecureField("Confirm Password", text: $confirmPassword)
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-            
+
+            // Using PasswordField for password input
+            PasswordField(password: $password)
+
+            // Using PasswordField for confirm password input
+            PasswordField(password: $confirmPassword)
+
             Button(action: signUp) {
                 Text("Sign Up")
                     .frame(maxWidth: .infinity)
@@ -51,7 +50,8 @@ struct SignUpView: View {
         }
         .padding()
     }
-    
+
+    // Function to handle sign-up
     func signUp() {
         // Input validation
         guard !fullName.isEmpty else {
@@ -74,29 +74,25 @@ struct SignUpView: View {
         
         // Create user with Firebase Authentication
         Auth.auth().createUser(withEmail: email, password: password) { authResult, error in
-            if let error = error {
-                // Print the full error details to the console
-                print("Sign-up error: \(error.localizedDescription)")
-                print("Error details: \(error)")
-                
-                // Update UI with error message
-                errorMessage = error.localizedDescription
+            if let error = error as NSError? {
+                // Use custom error messages from AuthErrorHelper
+                errorMessage = customErrorMessage(for: error)
                 showingError = true
             } else {
-                // Proceed with storing user data in Firestore
+                // Store user data in Firestore after successful sign-up
                 if let uid = authResult?.user.uid {
                     let db = Firestore.firestore()
                     db.collection("users").document(uid).setData([
                         "fullName": fullName,
                         "email": email
                     ]) { error in
-                        if let error = error {
-                            print("Firestore error: \(error.localizedDescription)")
+                        if let error = error as NSError? {
+                            // Use custom error messages for Firestore errors as well (optional)
                             errorMessage = "User created but failed to save name: \(error.localizedDescription)"
                             showingError = true
                         } else {
-                            // Navigate to the main app interface
-                            // For example, set a logged-in state or dismiss the view
+                            // Handle successful Firestore write (e.g., navigate to main app interface)
+                            showingError = false
                         }
                     }
                 }
