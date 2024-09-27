@@ -5,9 +5,6 @@
 //  Created by Ryan Sandvik on 9/26/24.
 //
 
-
-// Views/Groups/JoinGroupView.swift
-
 import SwiftUI
 import FirebaseAuth
 import FirebaseFirestore
@@ -16,22 +13,35 @@ struct JoinGroupView: View {
     @State private var groupIdInput: String = ""
     @State private var errorMessage: String = ""
     @State private var showingError: Bool = false
+    @State private var isLoading: Bool = false
     @Environment(\.presentationMode) var presentationMode
 
     var body: some View {
         VStack(spacing: 20) {
-            TextField("Enter Group ID", text: $groupIdInput)
+            Text("Enter the Group ID to Join")
+                .font(.headline)
+                .padding(.top, 40)
+
+            TextField("Group ID", text: $groupIdInput)
                 .textFieldStyle(RoundedBorderTextFieldStyle())
                 .padding(.horizontal)
+                .autocapitalization(.none)
+                .disableAutocorrection(true)
 
             Button(action: joinGroup) {
                 Text("Join Group")
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(Color.green)
+                    .background(isLoading ? Color.gray : Color.green)
                     .foregroundColor(.white)
                     .cornerRadius(8)
                     .padding(.horizontal)
+            }
+            .disabled(isLoading)
+
+            if isLoading {
+                ProgressView("Joining Group...")
+                    .padding()
             }
 
             if showingError {
@@ -61,19 +71,26 @@ struct JoinGroupView: View {
             return
         }
 
+        isLoading = true
+
         let db = Firestore.firestore()
         let groupRef = db.collection("groups").document(trimmedGroupId)
 
+        // Fetch the group document to verify existence and current membership
         groupRef.getDocument { document, error in
             if let error = error {
                 errorMessage = "Failed to find group: \(error.localizedDescription)"
                 showingError = true
+                print("Error fetching group: \(error.localizedDescription)")
+                isLoading = false
                 return
             }
 
             guard let document = document, document.exists else {
                 errorMessage = "Group not found. Please check the ID."
                 showingError = true
+                print("Group with ID \(trimmedGroupId) does not exist.")
+                isLoading = false
                 return
             }
 
@@ -83,6 +100,8 @@ struct JoinGroupView: View {
                membersDict[userId] == true {
                 errorMessage = "You are already a member of this group."
                 showingError = true
+                print("User \(userId) is already a member of group \(trimmedGroupId).")
+                isLoading = false
                 return
             }
 
@@ -90,16 +109,23 @@ struct JoinGroupView: View {
             guard let userId = Auth.auth().currentUser?.uid else {
                 errorMessage = "User not authenticated."
                 showingError = true
+                print("User is not authenticated.")
+                isLoading = false
                 return
             }
 
+            // Update the 'members.{userId}' field to true
             groupRef.updateData([
                 "members.\(userId)": true
             ]) { error in
+                isLoading = false
                 if let error = error {
                     errorMessage = "Failed to join group: \(error.localizedDescription)"
                     showingError = true
+                    print("Error joining group: \(error.localizedDescription)")
                 } else {
+                    print("User \(userId) successfully joined group \(trimmedGroupId).")
+                    // Optionally, show a success message before dismissing
                     presentationMode.wrappedValue.dismiss()
                 }
             }

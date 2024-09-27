@@ -5,9 +5,6 @@
 //  Created by Ryan Sandvik on 9/26/24.
 //
 
-
-// Views/Groups/MyGroupsView.swift
-
 import SwiftUI
 import FirebaseAuth
 import FirebaseFirestore
@@ -17,12 +14,31 @@ struct MyGroupsView: View {
     @State private var listener: ListenerRegistration?
     @State private var errorMessage = ""
     @State private var showingError = false
-    @State private var showCreateGroupView = false
+    @State private var showingCreateGroup = false
     @State private var showJoinGroupView = false
+    @ObservedObject var userFetcher = UserFetcher()
 
     var body: some View {
         NavigationView {
             VStack {
+                // Create Group Banner Button
+                Button(action: {
+                    showingCreateGroup = true
+                }) {
+                    HStack {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.title)
+                        Text("Create New Group")
+                            .font(.headline)
+                    }
+                    .padding()
+                    .foregroundColor(.white)
+                    .background(Color.blue)
+                    .cornerRadius(10)
+                }
+                .padding()
+
+                // Groups List
                 List(groups) { group in
                     NavigationLink(destination: GroupDetailView(group: group)) {
                         HStack {
@@ -38,12 +54,13 @@ struct MyGroupsView: View {
                                             .cornerRadius(25)
                                     } else if phase.error != nil {
                                         // Error loading image
-                                        Image(systemName: "photo")
-                                            .resizable()
-                                            .scaledToFill()
+                                        Circle()
+                                            .fill(Color.gray.opacity(0.5))
                                             .frame(width: 50, height: 50)
-                                            .clipped()
-                                            .cornerRadius(25)
+                                            .overlay(
+                                                Image(systemName: "photo")
+                                                    .foregroundColor(.white)
+                                            )
                                     } else {
                                         // Placeholder while loading
                                         ProgressView()
@@ -60,42 +77,42 @@ struct MyGroupsView: View {
                                             .foregroundColor(.white)
                                     )
                             }
-
+                            
+                            // Group Name and Short ID
                             VStack(alignment: .leading) {
                                 Text(group.name)
                                     .font(.headline)
-                                Text(group.description)
+                                Text(shortGroupID(group.id))
                                     .font(.subheadline)
                                     .foregroundColor(.gray)
                             }
-                            .padding(.leading, 8)
                         }
-                        .padding(.vertical, 8)
                     }
                 }
                 .listStyle(PlainListStyle())
 
                 Spacer()
 
-                // Create Group Button at the bottom
+                // Optional: Uncomment if you want the button at the bottom as well
+                /*
                 Button(action: {
-                    // Navigate to CreateGroupView
-                    showCreateGroupView = true
+                    showingCreateGroup = true
                 }) {
-                    Text("Create a new group")
-                        .frame(maxWidth: UIScreen.main.bounds.width * 0.9)
-                        .padding()
-                        .background(Color.blue)
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
+                    HStack {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.title)
+                        Text("Create New Group")
+                            .font(.headline)
+                    }
+                    .padding()
+                    .foregroundColor(.white)
+                    .background(Color.blue)
+                    .cornerRadius(10)
                 }
-                .padding(.horizontal)
-                .padding(.bottom, 20) // Adjust bottom padding
-                .sheet(isPresented: $showCreateGroupView) {
-                    CreateGroupView()
-                }
+                .padding()
+                */
             }
-            .navigationBarTitle("My Groups", displayMode: .inline)
+            .navigationTitle("My Groups")
             .navigationBarItems(
                 leading: EmptyView(),
                 trailing:
@@ -105,6 +122,7 @@ struct MyGroupsView: View {
                             showJoinGroupView = true
                         }) {
                             Image(systemName: "person.badge.plus")
+                                .font(.title2)
                         }
                         .sheet(isPresented: $showJoinGroupView) {
                             JoinGroupView()
@@ -113,6 +131,9 @@ struct MyGroupsView: View {
             )
             .onAppear(perform: startListening)
             .onDisappear(perform: stopListening)
+            .sheet(isPresented: $showingCreateGroup) {
+                CreateGroupView()
+            }
             .alert(isPresented: $showingError) {
                 Alert(title: Text("Error"), message: Text(errorMessage), dismissButton: .default(Text("OK")))
             }
@@ -131,40 +152,33 @@ struct MyGroupsView: View {
         let db = Firestore.firestore()
         listener = db.collection("groups")
             .whereField("members.\(userId)", isEqualTo: true)
-            .addSnapshotListener { snapshot, error in
+            .addSnapshotListener { querySnapshot, error in
                 if let error = error {
                     errorMessage = "Failed to fetch groups: \(error.localizedDescription)"
                     showingError = true
-                } else if let snapshot = snapshot {
-                    self.groups = snapshot.documents.compactMap { document in
-                        let data = document.data()
-                        let groupId = document.documentID
-                        let name = data["name"] as? String ?? ""
-                        let description = data["description"] as? String ?? ""
-                        let ownerId = data["ownerId"] as? String ?? ""
-                        let timestamp = data["createdAt"] as? Timestamp
-                        let createdAt = timestamp?.dateValue() ?? Date()
-                        let imageURL = data["imageURL"] as? String
-                        let originalId = data["originalId"] as? String
+                    print("Error fetching groups: \(error.localizedDescription)")
+                    return
+                }
 
-                        // Append a timestamp to the imageURL to force update (cache busting)
-                        let updatedImageURL = imageURL != nil ? "\(imageURL!)?v=\(Int(Date().timeIntervalSince1970))" : nil
+                guard let documents = querySnapshot?.documents else {
+                    print("No groups found.")
+                    self.groups = []
+                    return
+                }
 
-                        return Group(
-                            id: groupId,
-                            name: name,
-                            description: description,
-                            ownerId: ownerId,
-                            createdAt: createdAt,
-                            imageURL: updatedImageURL,
-                            originalId: originalId
-                        )
-                    }
+                self.groups = documents.compactMap { doc in
+                    Group(document: doc.data(), id: doc.documentID)
                 }
             }
     }
 
     func stopListening() {
         listener?.remove()
+    }
+
+    // MARK: - Clipboard Functionality
+
+    func shortGroupID(_ id: String) -> String {
+        return String(id.prefix(8))
     }
 }
