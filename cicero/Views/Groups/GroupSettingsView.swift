@@ -1,3 +1,10 @@
+//
+//  GroupSettingsView.swift
+//  cicero
+//
+//  Created by Ryan Sandvik on 9/27/24.
+//
+
 import SwiftUI
 import FirebaseAuth
 import FirebaseFirestore
@@ -70,6 +77,17 @@ struct GroupSettingsView: View {
             .textFieldStyle(RoundedBorderTextFieldStyle())
             .padding(.horizontal)
 
+            // Group ID Display
+            Button(action: {
+                copyGroupIdToClipboard()
+            }) {
+                Text("Group ID: \(group.id ?? "")")
+                    .font(.subheadline)
+                    .foregroundColor(.blue)
+                    .underline()
+            }
+            .padding(.horizontal)
+
             Spacer()
 
             // Leave Group Button
@@ -92,6 +110,17 @@ struct GroupSettingsView: View {
                         .frame(maxWidth: .infinity)
                         .padding()
                         .background(Color.orange)
+                        .foregroundColor(.white)
+                        .cornerRadius(8)
+                        .padding(.horizontal)
+                }
+
+                // Delete Group Button
+                Button(action: deleteGroup) {
+                    Text("Delete Group")
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.red)
                         .foregroundColor(.white)
                         .cornerRadius(8)
                         .padding(.horizontal)
@@ -119,7 +148,12 @@ struct GroupSettingsView: View {
         .actionSheet(isPresented: $showingTransferOwnership) {
             ActionSheet(title: Text("Transfer Ownership"), message: Text("Select a member"), buttons: transferOwnershipButtons())
         }
+        .alert(isPresented: $showingError) {
+            Alert(title: Text("Notification"), message: Text(errorMessage), dismissButton: .default(Text("OK")))
+        }
     }
+
+    // MARK: - Functions
 
     func isAdmin() -> Bool {
         return group.ownerId == Auth.auth().currentUser?.uid
@@ -178,20 +212,55 @@ struct GroupSettingsView: View {
     func leaveGroup() {
         guard let userId = Auth.auth().currentUser?.uid, let groupId = group.id else { return }
 
-        if isAdmin() {
-            errorMessage = "You must transfer ownership before leaving the group."
-            showingError = true
-            return
-        }
-
         let db = Firestore.firestore()
-        db.collection("groups").document(groupId).updateData([
-            "members.\(userId)": FieldValue.delete()
-        ]) { error in
+        let groupRef = db.collection("groups").document(groupId)
+
+        groupRef.getDocument { document, error in
             if let error = error {
                 errorMessage = "Failed to leave group: \(error.localizedDescription)"
                 showingError = true
+            } else if let document = document, document.exists {
+                let membersDict = document.data()?["members"] as? [String: Bool] ?? [:]
+                if membersDict.count == 1, membersDict.keys.contains(userId) {
+                    // Only member left; delete the group
+                    deleteGroup()
+                } else {
+                    // Remove user from group's members
+                    groupRef.updateData([
+                        "members.\(userId)": FieldValue.delete()
+                    ]) { error in
+                        if let error = error {
+                            errorMessage = "Failed to leave group: \(error.localizedDescription)"
+                            showingError = true
+                        } else {
+                            presentationMode.wrappedValue.dismiss()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    func deleteGroup() {
+        guard let groupId = group.id else { return }
+        let db = Firestore.firestore()
+        let storageRef = Storage.storage().reference().child("groupImages/\(groupId).jpg")
+
+        // Delete the group image from storage
+        storageRef.delete { error in
+            if let error = error {
+                print("Failed to delete group image: \(error.localizedDescription)")
+                // Continue with group deletion even if image deletion fails
+            }
+        }
+
+        // Delete the group document
+        db.collection("groups").document(groupId).delete { error in
+            if let error = error {
+                errorMessage = "Failed to delete group: \(error.localizedDescription)"
+                showingError = true
             } else {
+                // Optionally, delete any other associated data
                 presentationMode.wrappedValue.dismiss()
             }
         }
@@ -240,5 +309,11 @@ struct GroupSettingsView: View {
                 showingError = true
             }
         }
+    }
+
+    func copyGroupIdToClipboard() {
+        UIPasteboard.general.string = group.id ?? ""
+        errorMessage = "Group ID copied to clipboard."
+        showingError = true
     }
 }

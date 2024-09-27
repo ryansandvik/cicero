@@ -14,72 +14,147 @@ import FirebaseFirestore
 
 struct GroupDetailView: View {
     var group: Group
-    @State private var members: [Member] = []
-    @State private var isLoading = true
+    @State private var members: [String] = []
+    @State private var listener: ListenerRegistration?
     @State private var errorMessage = ""
     @State private var showingError = false
-    @EnvironmentObject var session: SessionStore
+    @Environment(\.presentationMode) var presentationMode
 
-    var body: some View {
-        VStack {
-            Text(group.name)
-                .font(.largeTitle)
-                .padding()
+    @State private var showGroupSettings = false
 
-            Text(group.description)
-                .font(.body)
-                .padding()
-
-            List(members) { member in
-                Text(member.userId) // Replace with user display name if available
-            }
-        }
-        .navigationTitle("Group Details")
-        .navigationBarItems(trailing: leaveGroupButton())
-        .onAppear(perform: fetchMembers)
-        .alert(isPresented: $showingError) {
-            Alert(title: Text("Error"), message: Text(errorMessage), dismissButton: .default(Text("OK")))
-        }
-    }
-
-    func fetchMembers() {
-        isLoading = true
-        let db = Firestore.firestore()
-        db.collection("groups").document(group.id ?? "")
-            .collection("members")
-            .getDocuments { snapshot, error in
-                isLoading = false
-                if let error = error {
-                    errorMessage = "Failed to fetch members: \(error.localizedDescription)"
-                    showingError = true
-                } else {
-                    members = snapshot?.documents.compactMap { document in
-                        try? document.data(as: Member.self)
-                    } ?? []
+        var body: some View {
+            VStack {
+                // Group Image
+                Button(action: {
+                    // Navigate to GroupSettingsView
+                    showGroupSettings = true
+                }) {
+                    if let imageURL = group.imageURL, let url = URL(string: imageURL) {
+                        AsyncImage(url: url) { phase in
+                            if let image = phase.image {
+                                image
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 100, height: 100)
+                                    .clipped()
+                                    .cornerRadius(50)
+                            } else if phase.error != nil {
+                                // Error loading image
+                                Circle()
+                                    .fill(Color.gray.opacity(0.5))
+                                    .frame(width: 100, height: 100)
+                                    .overlay(
+                                        Image(systemName: "photo")
+                                            .foregroundColor(.white)
+                                    )
+                            } else {
+                                // Placeholder while loading
+                                ProgressView()
+                                    .frame(width: 100, height: 100)
+                            }
+                        }
+                    } else {
+                        // No image URL, show placeholder
+                        Circle()
+                            .fill(Color.gray.opacity(0.5))
+                            .frame(width: 100, height: 100)
+                            .overlay(
+                                Image(systemName: "photo")
+                                    .foregroundColor(.white)
+                            )
+                    }
                 }
-            }
-    }
+                .buttonStyle(PlainButtonStyle())
 
-    func leaveGroup() {
-        guard let userId = Auth.auth().currentUser?.uid else { return }
-        let db = Firestore.firestore()
-        db.collection("groups").document(group.id ?? "")
-            .collection("members").document(userId)
-            .delete { error in
-                if let error = error {
-                    errorMessage = "Failed to leave group: \(error.localizedDescription)"
-                    showingError = true
-                } else {
-                    // Navigate back to MyGroupsView
-                    // You might need to adjust this based on your navigation setup
+                // Group Name
+                Button(action: {
+                    // Navigate to GroupSettingsView
+                    showGroupSettings = true
+                }) {
+                    Text(group.name)
+                        .font(.title)
+                        .foregroundColor(.primary)
                 }
+                .buttonStyle(PlainButtonStyle())
+
+                // Rest of your view content (e.g., list of members)
+                List(members, id: \.self) { memberId in
+                    Text(memberId) // Replace with user names if available
+                }
+
+                Spacer()
             }
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarItems(leading: groupNavigationBarContent)
+            .onAppear(perform: startListening)
+            .onDisappear(perform: stopListening)
+            .sheet(isPresented: $showGroupSettings) {
+                GroupSettingsView(group: group)
+            }
+        }
+    var groupNavigationBarContent: some View {
+           HStack(spacing: 8) {
+               // Back button is automatically provided by NavigationView
+               // Group Image
+               Button(action: {
+                   // Navigate to GroupSettingsView
+                   showGroupSettings = true
+               }) {
+                   if let imageURL = group.imageURL, let url = URL(string: imageURL) {
+                       AsyncImage(url: url) { phase in
+                           if let image = phase.image {
+                               image
+                                   .resizable()
+                                   .scaledToFill()
+                                   .frame(width: 32, height: 32)
+                                   .clipped()
+                                   .cornerRadius(16)
+                           } else if phase.error != nil {
+                               // Error loading image
+                               Image(systemName: "photo")
+                                   .resizable()
+                                   .scaledToFill()
+                                   .frame(width: 32, height: 32)
+                                   .clipped()
+                                   .cornerRadius(16)
+                           } else {
+                               // Placeholder while loading
+                               ProgressView()
+                                   .frame(width: 32, height: 32)
+                           }
+                       }
+                   } else {
+                       // No image URL, show placeholder
+                       Circle()
+                           .fill(Color.gray.opacity(0.5))
+                           .frame(width: 32, height: 32)
+                           .overlay(
+                               Image(systemName: "photo")
+                                   .foregroundColor(.white)
+                           )
+                   }
+               }
+               .buttonStyle(PlainButtonStyle())
+
+               // Group Name
+               Button(action: {
+                   // Navigate to GroupSettingsView
+                   showGroupSettings = true
+               }) {
+                   Text(group.name)
+                       .font(.headline)
+                       .foregroundColor(.primary)
+               }
+               .buttonStyle(PlainButtonStyle())
+           }
+       }
+
+    func startListening() {
+        // Real-time listener for members
     }
 
-    func leaveGroupButton() -> some View {
-        Button(action: leaveGroup) {
-            Text("Leave Group")
-                .foregroundColor(.red)
-        }
+    func stopListening() {
+        listener?.remove()
     }
 }
+

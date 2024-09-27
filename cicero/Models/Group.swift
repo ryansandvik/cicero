@@ -13,8 +13,10 @@ import FirebaseFirestore
 
 struct Group: Identifiable, Codable {
     @DocumentID var id: String? // Group ID
-    var name: String
+    var name: String // Now short ID
     var description: String
     var ownerId: String
     var createdAt: Date
+    var imageURL: String?
+    var originalId: String? // Store the original Firestore document ID
 }
