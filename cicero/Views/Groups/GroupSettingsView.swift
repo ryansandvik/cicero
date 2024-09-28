@@ -186,9 +186,9 @@ struct GroupSettingsView: View {
             if let error = error {
                 errorMessage = "Failed to update group name: \(error.localizedDescription)"
                 showingError = true
-            } else {
-                errorMessage = "Group name updated successfully."
-                showingError = true
+            //} else {
+            //    errorMessage = "Group name updated successfully."
+            //    showingError = true
             }
         }
     }
@@ -207,9 +207,9 @@ struct GroupSettingsView: View {
             if let error = error {
                 errorMessage = "Failed to update group description: \(error.localizedDescription)"
                 showingError = true
-            } else {
-                errorMessage = "Group description updated successfully."
-                showingError = true
+            //} else {
+            //    errorMessage = "Group description updated successfully."
+            //    showingError = true
             }
         }
     }

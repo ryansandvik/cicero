@@ -21,22 +21,25 @@ struct MyGroupsView: View {
     var body: some View {
         NavigationView {
             VStack {
-                // Create Group Banner Button
-                Button(action: {
-                    showingCreateGroup = true
-                }) {
-                    HStack {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.title)
-                        Text("Create New Group")
-                            .font(.headline)
+                // Header with "My Groups" and Join Group button
+                HStack {
+                    Text("My Groups")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        showJoinGroupView = true
+                    }) {
+                        Image(systemName: "person.badge.plus")
+                            .font(.title2)
                     }
-                    .padding()
-                    .foregroundColor(.white)
-                    .background(Color.blue)
-                    .cornerRadius(10)
+                    .sheet(isPresented: $showJoinGroupView) {
+                        JoinGroupView()
+                    }
                 }
-                .padding()
+                .padding([.horizontal, .top])
 
                 // Groups List
                 List(groups) { group in
@@ -82,7 +85,7 @@ struct MyGroupsView: View {
                             VStack(alignment: .leading) {
                                 Text(group.name)
                                     .font(.headline)
-                                Text(shortGroupID(group.id))
+                                Text(group.description)
                                     .font(.subheadline)
                                     .foregroundColor(.gray)
                             }
@@ -93,15 +96,14 @@ struct MyGroupsView: View {
 
                 Spacer()
 
-                // Optional: Uncomment if you want the button at the bottom as well
-                /*
+                // Create New Group Button at Bottom
                 Button(action: {
                     showingCreateGroup = true
                 }) {
                     HStack {
                         Image(systemName: "plus.circle.fill")
                             .font(.title)
-                        Text("Create New Group")
+                        Text("Create a new group")
                             .font(.headline)
                     }
                     .padding()
@@ -110,30 +112,13 @@ struct MyGroupsView: View {
                     .cornerRadius(10)
                 }
                 .padding()
-                */
+                .sheet(isPresented: $showingCreateGroup) {
+                    CreateGroupView()
+                }
             }
-            .navigationTitle("My Groups")
-            .navigationBarItems(
-                leading: EmptyView(),
-                trailing:
-                    HStack {
-                        Button(action: {
-                            // Navigate to JoinGroupView
-                            showJoinGroupView = true
-                        }) {
-                            Image(systemName: "person.badge.plus")
-                                .font(.title2)
-                        }
-                        .sheet(isPresented: $showJoinGroupView) {
-                            JoinGroupView()
-                        }
-                    }
-            )
+            .navigationBarHidden(true)
             .onAppear(perform: startListening)
             .onDisappear(perform: stopListening)
-            .sheet(isPresented: $showingCreateGroup) {
-                CreateGroupView()
-            }
             .alert(isPresented: $showingError) {
                 Alert(title: Text("Error"), message: Text(errorMessage), dismissButton: .default(Text("OK")))
             }
