@@ -5,9 +5,6 @@
 //  Created by Ryan Sandvik on 9/27/24.
 //
 
-
-// GroupViewModel.swift
-
 import Foundation
 import FirebaseAuth
 import FirebaseFirestore
@@ -29,7 +26,8 @@ class GroupViewModel: ObservableObject {
     
     // Private properties
     private var userFetcher = UserFetcher()
-    private var listener: ListenerRegistration?
+    private var groupListener: ListenerRegistration?
+    private var membersListener: ListenerRegistration?
     private var groupId: String
     
     // Initializer
@@ -44,7 +42,7 @@ class GroupViewModel: ObservableObject {
     
     // Function to start listening to Firestore updates
     func startListening() {
-        guard let userId = Auth.auth().currentUser?.uid else {
+        guard let _ = Auth.auth().currentUser?.uid else {
             DispatchQueue.main.async {
                 self.errorMessage = "User not authenticated."
                 self.showingError = true
@@ -53,7 +51,9 @@ class GroupViewModel: ObservableObject {
         }
         
         let db = Firestore.firestore()
-        listener = db.collection("groups").document(groupId).addSnapshotListener { [weak self] documentSnapshot, error in
+        
+        // Listen to group document for details
+        groupListener = db.collection("groups").document(groupId).addSnapshotListener { [weak self] documentSnapshot, error in
             guard let self = self else { return }
             
             if let error = error {
@@ -85,14 +85,42 @@ class GroupViewModel: ObservableObject {
                 self.imageURL = data?["imageURL"] as? String
                 self.originalId = data?["originalId"] as? String
             }
+        }
+        
+        // Listen to members subcollection for real-time updates
+        membersListener = db.collection("groups").document(groupId).collection("members").addSnapshotListener { [weak self] querySnapshot, error in
+            guard let self = self else { return }
             
-            // Fetch members
-            if let membersDict = data?["members"] as? [String: Bool] {
-                let memberIds = Array(membersDict.keys)
-                self.userFetcher.fetchUsers(uids: memberIds) { fetchedUsers in
-                    DispatchQueue.main.async {
-                        self.members = fetchedUsers
-                    }
+            if let error = error {
+                DispatchQueue.main.async {
+                    self.errorMessage = "Failed to fetch group members: \(error.localizedDescription)"
+                    self.showingError = true
+                }
+                print("Error fetching group members: \(error.localizedDescription)")
+                return
+            }
+            
+            guard let querySnapshot = querySnapshot else {
+                DispatchQueue.main.async {
+                    self.errorMessage = "No members found."
+                    self.showingError = true
+                }
+                print("No members found.")
+                return
+            }
+            
+            let memberIds = querySnapshot.documents.compactMap { $0.documentID } // memberId == userId now
+            
+            if memberIds.isEmpty {
+                DispatchQueue.main.async {
+                    self.members = []
+                }
+                return
+            }
+            
+            self.userFetcher.fetchUsers(uids: memberIds) { fetchedUsers in
+                DispatchQueue.main.async {
+                    self.members = fetchedUsers
                 }
             }
         }
@@ -100,7 +128,8 @@ class GroupViewModel: ObservableObject {
     
     // Function to stop listening to Firestore updates
     func stopListening() {
-        listener?.remove()
+        groupListener?.remove()
+        membersListener?.remove()
     }
     
     // Function to copy Group ID to clipboard
