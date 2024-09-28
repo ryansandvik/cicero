@@ -11,6 +11,7 @@ import FirebaseFirestore
 import FirebaseStorage
 
 struct GroupSettingsView: View {
+    @ObservedObject var viewModel: GroupViewModel
     @State var group: Group
     @State private var selectedImage: UIImage?
     @State private var showingImagePicker = false
