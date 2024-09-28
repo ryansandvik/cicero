@@ -19,7 +19,20 @@ struct GroupSettingsView: View {
     @State private var showingError = false
     @Environment(\.presentationMode) var presentationMode
     @ObservedObject var userFetcher = UserFetcher()
-    @State private var listener: ListenerRegistration? // Declare the listener
+    @State private var listener: ListenerRegistration?
+
+    // MARK: - Debounce Function
+    func debounce(_ delay: TimeInterval, action: @escaping () -> Void) -> () -> Void {
+        var currentWorkItem: DispatchWorkItem?
+
+        return {
+            currentWorkItem?.cancel()
+            currentWorkItem = DispatchWorkItem {
+                action()
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: currentWorkItem!)
+        }
+    }
 
     var body: some View {
         VStack(spacing: 20) {
@@ -71,19 +84,27 @@ struct GroupSettingsView: View {
             }
             .buttonStyle(PlainButtonStyle())
 
-            // Group Name
-            TextField("Group Name", text: $group.name, onCommit: {
-                updateGroupName()
-            })
+            // Group Name (debounced update)
+            TextField("Group Name", text: $group.name)
                 .textFieldStyle(RoundedBorderTextFieldStyle())
                 .padding(.horizontal)
+                .onChange(of: group.name) { newValue in
+                    let debouncedUpdateName = debounce(0.5) {
+                        updateGroupName()
+                    }
+                    debouncedUpdateName()
+                }
 
-            // Group Description
-            TextField("Group Description", text: $group.description, onCommit: {
-                updateGroupDescription()
-            })
+            // Group Description (debounced update)
+            TextField("Group Description", text: $group.description)
                 .textFieldStyle(RoundedBorderTextFieldStyle())
                 .padding(.horizontal)
+                .onChange(of: group.description) { newValue in
+                    let debouncedUpdateDescription = debounce(0.5) {
+                        updateGroupDescription()
+                    }
+                    debouncedUpdateDescription()
+                }
 
             // Short Group ID with Copy Functionality
             HStack {
@@ -149,7 +170,7 @@ struct GroupSettingsView: View {
         .padding()
         .navigationTitle("Group Settings")
         .onAppear(perform: startListening)
-        .onDisappear(perform: stopListening) // Ensure listener is removed when view disappears
+        .onDisappear(perform: stopListening)
         .sheet(isPresented: $showingImagePicker) {
             ImagePicker(selectedImage: $selectedImage)
                 .onDisappear {
@@ -168,51 +189,47 @@ struct GroupSettingsView: View {
 
     // MARK: - Functions
 
+
     func isAdmin() -> Bool {
         return group.ownerId == Auth.auth().currentUser?.uid
     }
 
     func updateGroupName() {
-        let trimmedName = group.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        
-        guard !trimmedName.isEmpty else {
-            errorMessage = "Group name cannot be empty."
-            showingError = true
-            return
-        }
-        
-        let db = Firestore.firestore()
-        db.collection("groups").document(group.id).updateData(["name": trimmedName]) { error in
-            if let error = error {
-                errorMessage = "Failed to update group name: \(error.localizedDescription)"
-                showingError = true
-            //} else {
-            //    errorMessage = "Group name updated successfully."
-            //    showingError = true
-            }
-        }
-    }
-
+           let trimmedName = group.name.trimmingCharacters(in: .whitespacesAndNewlines)
+           
+           guard !trimmedName.isEmpty else {
+               errorMessage = "Group name cannot be empty."
+               showingError = true
+               return
+           }
+           
+           let db = Firestore.firestore()
+           db.collection("groups").document(group.id).updateData(["name": trimmedName]) { error in
+               if let error = error {
+                   errorMessage = "Failed to update group name: \(error.localizedDescription)"
+                   showingError = true
+               }
+           }
+       }
+    
     func updateGroupDescription() {
-        let trimmedDescription = group.description.trimmingCharacters(in: .whitespacesAndNewlines)
-        
-        guard !trimmedDescription.isEmpty else {
-            errorMessage = "Group description cannot be empty."
-            showingError = true
-            return
-        }
-        
-        let db = Firestore.firestore()
-        db.collection("groups").document(group.id).updateData(["description": trimmedDescription]) { error in
-            if let error = error {
-                errorMessage = "Failed to update group description: \(error.localizedDescription)"
+            let trimmedDescription = group.description.trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            guard !trimmedDescription.isEmpty else {
+                errorMessage = "Group description cannot be empty."
                 showingError = true
-            //} else {
-            //    errorMessage = "Group description updated successfully."
-            //    showingError = true
+                return
+            }
+            
+            let db = Firestore.firestore()
+            db.collection("groups").document(group.id).updateData(["description": trimmedDescription]) { error in
+                if let error = error {
+                    errorMessage = "Failed to update group description: \(error.localizedDescription)"
+                    showingError = true
+                }
             }
         }
-    }
+    
 
     func uploadGroupImage() {
         guard let image = selectedImage, !group.id.isEmpty else { return }
