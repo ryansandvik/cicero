@@ -5,8 +5,6 @@
 //  Created by Ryan Sandvik on 9/26/24.
 //
 
-// GroupDetailView.swift
-
 import SwiftUI
 import FirebaseAuth
 import FirebaseFirestore
@@ -18,12 +16,12 @@ struct GroupDetailView: View {
     @State private var showingError = false
     @State private var showGroupSettings = false
     @Environment(\.presentationMode) var presentationMode
-    
+
     init(group: Group) {
         self.group = group
         _viewModel = StateObject(wrappedValue: GroupViewModel(groupId: group.id))
     }
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             // Group Image
@@ -69,7 +67,7 @@ struct GroupDetailView: View {
             .buttonStyle(PlainButtonStyle())
             .padding(.top, 20)
             .frame(maxWidth: .infinity, alignment: .center)
-            
+
             // Group Title
             Button(action: {
                 // Navigate to GroupSettingsView
@@ -84,13 +82,13 @@ struct GroupDetailView: View {
             .buttonStyle(PlainButtonStyle())
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.horizontal)
-            
+
             // Group Description
             Text(viewModel.description)
                 .font(.body)
                 .foregroundColor(.secondary)
                 .padding(.horizontal)
-            
+
             // Short Group ID with Copy Functionality
             HStack {
                 Text("Group ID:")
@@ -105,19 +103,31 @@ struct GroupDetailView: View {
                 }
             }
             .padding(.horizontal)
-            
+
             Divider()
-            
+
             // Members List
             Text("Members")
                 .font(.headline)
                 .padding(.horizontal)
-            
-            List(viewModel.members) { member in
-                UserRowView(user: member)
+
+            if viewModel.members.isEmpty {
+                // Display a message or a loading indicator
+                if viewModel.errorMessage.isEmpty {
+                    ProgressView("Loading members...")
+                        .padding()
+                } else {
+                    Text("No members found.")
+                        .foregroundColor(.secondary)
+                        .padding()
+                }
+            } else {
+                List(viewModel.members) { member in
+                    UserRowView(user: member)
+                }
+                .listStyle(PlainListStyle())
             }
-            .listStyle(PlainListStyle())
-            
+
             Spacer()
         }
         .navigationBarTitleDisplayMode(.inline)
@@ -129,7 +139,7 @@ struct GroupDetailView: View {
             Alert(title: Text("Error"), message: Text(viewModel.errorMessage), dismissButton: .default(Text("OK")))
         }
     }
-    
+
     var groupNavigationBarContent: some View {
         Button(action: {
             // Navigate to GroupSettingsView
@@ -146,6 +156,4 @@ struct GroupDetailView: View {
         // Assuming group.id is a UUID or similar, we can shorten it by taking the first 8 characters
         return String(group.id.prefix(8))
     }
-
-    // Removed 'copyGroupID' and 'startListening' functions, as they are handled by the ViewModel
 }

@@ -42,7 +42,7 @@ class GroupViewModel: ObservableObject {
     
     // Function to start listening to Firestore updates
     func startListening() {
-        guard let _ = Auth.auth().currentUser?.uid else {
+        guard let currentUserId = Auth.auth().currentUser?.uid else {
             DispatchQueue.main.async {
                 self.errorMessage = "User not authenticated."
                 self.showingError = true

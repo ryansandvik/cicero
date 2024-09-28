@@ -28,7 +28,7 @@ class UserFetcher: ObservableObject {
         
         let batchSize = 10 // Firestore 'whereIn' limit
         var fetchedUsers: [User] = []
-        var fetchError: Error?
+        var fetchErrors: [Error] = []
         let dispatchGroup = DispatchGroup()
         
         // Split UIDs into batches of 10
@@ -44,15 +44,19 @@ class UserFetcher: ObservableObject {
                     defer { dispatchGroup.leave() }
                     
                     if let error = error {
-                        fetchError = error
+                        fetchErrors.append(error)
+                        print("Error fetching users in batch \(batch): \(error.localizedDescription)")
                         return
                     }
                     
-                    guard let snapshot = snapshot else { return }
+                    guard let snapshot = snapshot else {
+                        print("No snapshot returned for batch \(batch).")
+                        return
+                    }
                     
                     let usersInBatch = snapshot.documents.compactMap { doc -> User? in
                         let data = doc.data()
-                        let name = data["name"] as? String ?? "No Name"
+                        let name = data["fullName"] as? String ?? "No Name" // Updated to match your user data
                         let email = data["email"] as? String ?? "No Email"
                         let profileImageURL = data["profileImageURL"] as? String
                         return User(id: doc.documentID, name: name, email: email, profileImageURL: profileImageURL)
@@ -63,9 +67,11 @@ class UserFetcher: ObservableObject {
         }
         
         dispatchGroup.notify(queue: .main) {
-            if let error = fetchError {
-                print("Error fetching users: \(error.localizedDescription)")
-                // Handle error appropriately, e.g., show an alert
+            if !fetchErrors.isEmpty {
+                // Aggregate errors for better debugging
+                let combinedError = fetchErrors.map { $0.localizedDescription }.joined(separator: "\n")
+                print("Errors fetching users: \(combinedError)")
+                // Optionally, you can pass the error messages back through completion or handle them as needed
             }
             self.users = fetchedUsers
             completion?(fetchedUsers)

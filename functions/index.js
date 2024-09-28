@@ -19,6 +19,7 @@ const logger = require("firebase-functions/logger");
 // });
 
 // functions/index.js
+// functions/index.js
 
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
@@ -55,19 +56,25 @@ exports.joinGroup = functions.https.onCall(async (data, context) => {
             );
         }
 
-        const groupData = groupDoc.data();
-        const members = groupData.members || {};
+        // Check if the user is already a member
+        const memberRef = groupRef.collection('members').doc(userId);
+        const memberDoc = await memberRef.get();
 
-        if (members[userId]) {
+        if (memberDoc.exists) {
             throw new functions.https.HttpsError(
                 'already-exists',
                 'User is already a member of this group.'
             );
         }
 
-        // Add the user to the members map
-        await groupRef.update({
-            [`members.${userId}`]: true
+        // Determine the role based on whether the user is the owner
+        const groupData = groupDoc.data();
+        const role = (userId === groupData.ownerId) ? 'admin' : 'member';
+
+        // Add the user to the members subcollection
+        await memberRef.set({
+            role: role,
+            joinedAt: admin.firestore.FieldValue.serverTimestamp()
         });
 
         return { success: true, message: 'Successfully joined the group.' };

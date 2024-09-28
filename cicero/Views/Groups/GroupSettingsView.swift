@@ -268,32 +268,41 @@ struct GroupSettingsView: View {
 
         let db = Firestore.firestore()
         let groupRef = db.collection("groups").document(group.id)
+        let memberRef = groupRef.collection("members").document(userId)
 
-        groupRef.getDocument { document, error in
+        memberRef.getDocument { document, error in
             if let error = error {
                 errorMessage = "Failed to leave group: \(error.localizedDescription)"
                 showingError = true
-            } else if let document = document, document.exists {
-                let membersDict = document.data()?["members"] as? [String: Bool] ?? [:]
-                if membersDict.count == 1, membersDict.keys.contains(userId) {
-                    // Only member left; delete the group
-                    deleteGroup()
-                } else {
-                    // Remove user from group's members
-                    groupRef.updateData([
-                        "members.\(userId)": FieldValue.delete()
-                    ]) { error in
-                        if let error = error {
-                            errorMessage = "Failed to leave group: \(error.localizedDescription)"
-                            showingError = true
-                        } else {
-                            presentationMode.wrappedValue.dismiss()
-                        }
+                return
+            }
+
+            if let document = document, document.exists {
+                // Check if the user is the owner
+                if group.ownerId == userId {
+                    // Optionally, handle ownership transfer or deletion
+                    // For simplicity, we'll prevent the owner from leaving
+                    errorMessage = "Owner cannot leave the group. Transfer ownership before leaving."
+                    showingError = true
+                    return
+                }
+
+                // Remove user from group's members subcollection
+                memberRef.delete { error in
+                    if let error = error {
+                        errorMessage = "Failed to leave group: \(error.localizedDescription)"
+                        showingError = true
+                    } else {
+                        presentationMode.wrappedValue.dismiss()
                     }
                 }
+            } else {
+                errorMessage = "You are not a member of this group."
+                showingError = true
             }
         }
     }
+
 
     func deleteGroup() {
         guard !group.id.isEmpty else { return }
