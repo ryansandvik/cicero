@@ -1,10 +1,3 @@
-//
-//  MyGroupsView.swift
-//  cicero
-//
-//  Created by Ryan Sandvik on 9/26/24.
-//
-
 import SwiftUI
 import FirebaseAuth
 import FirebaseFirestore
@@ -16,7 +9,8 @@ struct MyGroupsView: View {
     @State private var showingError = false
     @State private var showingCreateGroup = false
     @State private var showJoinGroupView = false
-    @ObservedObject var userFetcher = UserFetcher()
+
+    private let db = Firestore.firestore()
 
     var body: some View {
         NavigationView {
@@ -81,7 +75,7 @@ struct MyGroupsView: View {
                                     )
                             }
                             
-                            // Group Name and Short ID
+                            // Group Name and Description
                             VStack(alignment: .leading) {
                                 Text(group.name)
                                     .font(.headline)
@@ -134,9 +128,9 @@ struct MyGroupsView: View {
             return
         }
 
-        let db = Firestore.firestore()
-        listener = db.collection("groups")
-            .whereField("members.\(userId)", isEqualTo: true)
+        // Listen to all 'members' documents where 'userId' == userId
+        listener = db.collectionGroup("members")
+            .whereField("userId", isEqualTo: userId)
             .addSnapshotListener { querySnapshot, error in
                 if let error = error {
                     errorMessage = "Failed to fetch groups: \(error.localizedDescription)"
@@ -151,11 +145,39 @@ struct MyGroupsView: View {
                     return
                 }
 
-                self.groups = documents.compactMap { doc in
-                    Group(document: doc.data(), id: doc.documentID)
+                // Extract group references from member documents
+                let groupRefs = documents.compactMap { $0.reference.parent.parent }
+
+                if groupRefs.isEmpty {
+                    print("No group references found.")
+                    self.groups = []
+                    return
+                }
+
+                // Fetch all group documents
+                db.getAllDocuments(refs: groupRefs) { fetchedGroups, fetchError in
+                    if let fetchError = fetchError {
+                        errorMessage = "Pog. Failed to fetch group details: \(fetchError.localizedDescription)"
+                        showingError = true
+                        return
+                    }
+
+                    guard let fetchedGroups = fetchedGroups else {
+                        print("No groups fetched.")
+                        self.groups = []
+                        return
+                    }
+
+                    // Convert Firestore documents to Group objects
+                    self.groups = fetchedGroups.compactMap { doc in
+                        guard let data = doc.data() else { return nil }
+                        return Group(document: data, id: doc.documentID)
+                    }
                 }
             }
     }
+
+    
 
     func stopListening() {
         listener?.remove()

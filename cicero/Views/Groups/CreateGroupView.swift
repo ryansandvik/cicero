@@ -146,7 +146,6 @@ struct CreateGroupView: View {
         let characters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
         return String((0..<6).map { _ in characters.randomElement()! })
     }
-
     /// Adds a member to the group's members subcollection
     /// - Parameters:
     ///   - groupId: The ID of the group
@@ -158,6 +157,7 @@ struct CreateGroupView: View {
         let memberRef = db.collection("groups").document(groupId).collection("members").document(userId)
 
         memberRef.setData([
+            "userId": userId, // New Field
             "role": role,
             "joinedAt": Timestamp(date: Date())
         ]) { error in
@@ -170,4 +170,5 @@ struct CreateGroupView: View {
             }
         }
     }
+
 }

@@ -8,49 +8,27 @@
 import Foundation
 import Firebase
 
-struct Group: Identifiable, Equatable {
-    var id: String // Group ID (Firestore Document ID)
+struct Group: Identifiable {
+    var id: String
     var name: String
     var description: String
     var ownerId: String
-    var createdAt: Date
     var imageURL: String?
+    var createdAt: Date
     var originalId: String?
     
-    static func == (lhs: Group, rhs: Group) -> Bool {
-        return lhs.id == rhs.id &&
-            lhs.name == rhs.name &&
-            lhs.description == rhs.description &&
-            lhs.ownerId == rhs.ownerId &&
-            lhs.createdAt == rhs.createdAt &&
-            lhs.imageURL == rhs.imageURL &&
-            lhs.originalId == rhs.originalId
-    }
-    
-    init(id: String, name: String, description: String, ownerId: String, createdAt: Date, imageURL: String? = nil, originalId: String? = nil) {
+    init(document: [String: Any], id: String) {
         self.id = id
-        self.name = name
-        self.description = description
-        self.ownerId = ownerId
-        self.createdAt = createdAt
-        self.imageURL = imageURL
-        self.originalId = originalId
-    }
-    
-    init?(document: [String: Any], id: String) {
-        guard let name = document["name"] as? String,
-              let description = document["description"] as? String,
-              let ownerId = document["ownerId"] as? String,
-              let createdAtTimestamp = document["createdAt"] as? Timestamp else {
-            return nil
-        }
-        
-        self.id = id
-        self.name = name
-        self.description = description
-        self.ownerId = ownerId
-        self.createdAt = createdAtTimestamp.dateValue()
+        self.name = document["name"] as? String ?? "No Name"
+        self.description = document["description"] as? String ?? "No Description"
+        self.ownerId = document["ownerId"] as? String ?? ""
         self.imageURL = document["imageURL"] as? String
+        if let timestamp = document["createdAt"] as? Timestamp {
+            self.createdAt = timestamp.dateValue()
+        } else {
+            self.createdAt = Date()
+        }
         self.originalId = document["originalId"] as? String
     }
 }
+
