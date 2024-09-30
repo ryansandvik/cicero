@@ -71,8 +71,9 @@ exports.joinGroup = functions.https.onCall(async (data, context) => {
         const groupData = groupDoc.data();
         const role = (userId === groupData.ownerId) ? 'admin' : 'member';
 
-        // Add the user to the members subcollection
+        // Add the user to the members subcollection with 'userID' field
         await memberRef.set({
+            userID: userId, // Ensure 'userID' field is included
             role: role,
             joinedAt: admin.firestore.FieldValue.serverTimestamp()
         });
@@ -90,4 +91,5 @@ exports.joinGroup = functions.https.onCall(async (data, context) => {
         }
     }
 });
+
 

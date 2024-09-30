@@ -15,24 +15,35 @@ extension Firestore {
     func getAllDocuments(refs: [DocumentReference], completion: @escaping ([DocumentSnapshot]?, Error?) -> Void) {
         let dispatchGroup = DispatchGroup()
         var fetchedDocs: [DocumentSnapshot] = []
-        var fetchError: Error? = nil
+        var errors: [Error] = []
 
         for ref in refs {
             dispatchGroup.enter()
+            print("[FirestoreRetriever] Fetching document at path: \(ref.path)")
             ref.getDocument { snapshot, error in
                 if let error = error {
-                    fetchError = error
+                    print("[FirestoreRetriever] Error fetching document at \(ref.path): \(error.localizedDescription)")
+                    errors.append(error)
                 } else if let snapshot = snapshot, snapshot.exists {
+                    print("[FirestoreRetriever] Successfully fetched document at \(ref.path)")
                     fetchedDocs.append(snapshot)
+                } else {
+                    print("[FirestoreRetriever] Document does not exist at \(ref.path)")
                 }
                 dispatchGroup.leave()
             }
         }
 
         dispatchGroup.notify(queue: .main) {
-            if let error = fetchError {
-                completion(nil, error)
+            if !errors.isEmpty {
+                // Combine all error descriptions into a single error
+                let combinedError = NSError(domain: "FirestoreErrors", code: 0, userInfo: [
+                    NSLocalizedDescriptionKey: errors.map { $0.localizedDescription }.joined(separator: "\n")
+                ])
+                print("[FirestoreRetriever] Combined Error: \(combinedError.localizedDescription)")
+                completion(nil, combinedError)
             } else {
+                print("[FirestoreRetriever] Successfully fetched all documents.")
                 completion(fetchedDocs, nil)
             }
         }

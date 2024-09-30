@@ -16,9 +16,6 @@
 		D21F36E32CA58961005CB466 /* FirebaseFunctions in Frameworks */ = {isa = PBXBuildFile; productRef = D21F36E22CA58961005CB466 /* FirebaseFunctions */; };
 		D21F36ED2CA58961005CB466 /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = D21F36EC2CA58961005CB466 /* FirebaseMessaging */; };
 		D21F36F32CA58961005CB466 /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = D21F36F22CA58961005CB466 /* FirebaseStorage */; };
-		D24975FE2CA7733F001F3639 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = D24975FD2CA7733F001F3639 /* GoogleService-Info.plist */; };
-		D24975FF2CA7733F001F3639 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = D24975FD2CA7733F001F3639 /* GoogleService-Info.plist */; };
-		D24976002CA7733F001F3639 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = D24975FD2CA7733F001F3639 /* GoogleService-Info.plist */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -42,12 +39,32 @@
 		D21F369C2CA5829C005CB466 /* cicero.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = cicero.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D21F36AC2CA5829D005CB466 /* ciceroTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ciceroTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		D21F36B62CA5829D005CB466 /* ciceroUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ciceroUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		D24975FD2CA7733F001F3639 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		D24976112CA9C8B3001F3639 /* Exceptions for "cicero" folder in "ciceroTests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"GoogleService-Info.plist",
+			);
+			target = D21F36AB2CA5829D005CB466 /* ciceroTests */;
+		};
+		D24976122CA9C8B3001F3639 /* Exceptions for "cicero" folder in "ciceroUITests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"GoogleService-Info.plist",
+			);
+			target = D21F36B52CA5829D005CB466 /* ciceroUITests */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		D21F369E2CA5829C005CB466 /* cicero */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				D24976112CA9C8B3001F3639 /* Exceptions for "cicero" folder in "ciceroTests" target */,
+				D24976122CA9C8B3001F3639 /* Exceptions for "cicero" folder in "ciceroUITests" target */,
+			);
 			path = cicero;
 			sourceTree = "<group>";
 		};
@@ -104,7 +121,6 @@
 				D21F36AF2CA5829D005CB466 /* ciceroTests */,
 				D21F36B92CA5829D005CB466 /* ciceroUITests */,
 				D21F369D2CA5829C005CB466 /* Products */,
-				D24975FD2CA7733F001F3639 /* GoogleService-Info.plist */,
 			);
 			sourceTree = "<group>";
 		};
@@ -250,7 +266,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D24976002CA7733F001F3639 /* GoogleService-Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -258,7 +273,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D24975FE2CA7733F001F3639 /* GoogleService-Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -266,7 +280,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D24975FF2CA7733F001F3639 /* GoogleService-Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

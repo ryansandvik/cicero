@@ -125,31 +125,44 @@ struct MyGroupsView: View {
         guard let userId = Auth.auth().currentUser?.uid else {
             errorMessage = "User not authenticated."
             showingError = true
+            print("[startListening] No authenticated user found.")
             return
         }
 
-        // Listen to all 'members' documents where 'userId' == userId
+        print("[startListening] Authenticated user ID: \(userId)")
+
+        // Listen to 'members' documents where the 'userId' field == authenticated user ID
         listener = db.collectionGroup("members")
-            .whereField("userId", isEqualTo: userId)
+            .whereField("userId", isEqualTo: userId) // Adjusted query to check userId field
             .addSnapshotListener { querySnapshot, error in
                 if let error = error {
                     errorMessage = "Failed to fetch groups: \(error.localizedDescription)"
                     showingError = true
-                    print("Error fetching groups: \(error.localizedDescription)")
+                    print("[startListening] Error fetching groups: \(error.localizedDescription)")
                     return
                 }
 
                 guard let documents = querySnapshot?.documents else {
-                    print("No groups found.")
+                    print("[startListening] No groups found.")
                     self.groups = []
                     return
+                }
+
+                print("[startListening] Fetched members documents:")
+                for doc in documents {
+                    print("\tDocument Path: \(doc.reference.path)")
                 }
 
                 // Extract group references from member documents
                 let groupRefs = documents.compactMap { $0.reference.parent.parent }
 
+                print("[startListening] Extracted Group References:")
+                for ref in groupRefs {
+                    print("\tGroup Reference Path: \(ref.path)")
+                }
+
                 if groupRefs.isEmpty {
-                    print("No group references found.")
+                    print("[startListening] No group references found.")
                     self.groups = []
                     return
                 }
@@ -157,30 +170,41 @@ struct MyGroupsView: View {
                 // Fetch all group documents
                 db.getAllDocuments(refs: groupRefs) { fetchedGroups, fetchError in
                     if let fetchError = fetchError {
-                        errorMessage = "Pog. Failed to fetch group details: \(fetchError.localizedDescription)"
+                        errorMessage = "Failed to fetch group details: \(fetchError.localizedDescription)"
                         showingError = true
+                        print("[startListening] Error fetching group details: \(fetchError.localizedDescription)")
                         return
                     }
 
                     guard let fetchedGroups = fetchedGroups else {
-                        print("No groups fetched.")
+                        print("[startListening] No groups fetched.")
                         self.groups = []
                         return
                     }
 
+                    print("[startListening] Fetched groups data:")
+                    for groupDoc in fetchedGroups {
+                        print("\tGroup ID: \(groupDoc.documentID), Data: \(groupDoc.data())")
+                    }
+
                     // Convert Firestore documents to Group objects
-                    self.groups = fetchedGroups.compactMap { doc in
-                        guard let data = doc.data() else { return nil }
-                        return Group(document: data, id: doc.documentID)
+                    DispatchQueue.main.async {
+                        self.groups = fetchedGroups.compactMap { doc in
+                            guard let data = doc.data() else {
+                                print("[startListening] No data for document ID: \(doc.documentID)")
+                                return nil
+                            }
+                            return Group(document: data, id: doc.documentID)
+                        }
+                        print("[startListening] Successfully updated groups array with \(self.groups.count) groups.")
                     }
                 }
             }
     }
 
-    
-
     func stopListening() {
         listener?.remove()
+        print("[stopListening] Removed Firestore listener.")
     }
 
     // MARK: - Clipboard Functionality

@@ -5,17 +5,17 @@
 //  Created by Ryan Sandvik on 9/26/24.
 //
 
+
+// ciceroApp.swift
+
 import SwiftUI
-import Firebase
 import FirebaseAuth
+import FirebaseAppCheck
 
 @main
 struct CiceroApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject var session = SessionStore()
-
-    init() {
-        FirebaseApp.configure()
-    }
 
     var body: some Scene {
         WindowGroup {
@@ -31,4 +31,5 @@ struct CiceroApp: App {
         }
     }
 }
+
 
