@@ -9,31 +9,36 @@ import SwiftUI
 import FirebaseAuth
 import FirebaseFirestore
 import FirebaseStorage
+import FirebaseFunctions
+
+// MARK: - Debounce Function
+   func debounce(_ delay: TimeInterval, action: @escaping () -> Void) -> () -> Void {
+       var currentWorkItem: DispatchWorkItem?
+
+       return {
+           currentWorkItem?.cancel()
+           currentWorkItem = DispatchWorkItem {
+               action()
+           }
+           DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: currentWorkItem!)
+       }
+   }
 
 struct GroupSettingsView: View {
     @ObservedObject var viewModel: GroupViewModel
     @State var group: Group
+    @State private var originalGroupName = "" // Store original group name
     @State private var selectedImage: UIImage?
     @State private var showingImagePicker = false
     @State private var showingTransferOwnership = false
     @State private var errorMessage = ""
     @State private var showingError = false
+    @State private var navigateToMyGroups = false
+    @State private var showingDeleteConfirmation = false // For delete confirmation prompt
     @Environment(\.presentationMode) var presentationMode
     @ObservedObject var userFetcher = UserFetcher()
     @State private var listener: ListenerRegistration?
-
-    // MARK: - Debounce Function
-    func debounce(_ delay: TimeInterval, action: @escaping () -> Void) -> () -> Void {
-        var currentWorkItem: DispatchWorkItem?
-
-        return {
-            currentWorkItem?.cancel()
-            currentWorkItem = DispatchWorkItem {
-                action()
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: currentWorkItem!)
-        }
-    }
+    @State private var functions = Functions.functions() // Firebase Functions reference
 
     var body: some View {
         VStack(spacing: 20) {
@@ -58,7 +63,6 @@ struct GroupSettingsView: View {
                                 .clipped()
                                 .cornerRadius(75)
                         } else if phase.error != nil {
-                            // Error loading image
                             Circle()
                                 .fill(Color.gray.opacity(0.5))
                                 .frame(width: 150, height: 150)
@@ -67,13 +71,11 @@ struct GroupSettingsView: View {
                                         .foregroundColor(.white)
                                 )
                         } else {
-                            // Placeholder while loading
                             ProgressView()
                                 .frame(width: 150, height: 150)
                         }
                     }
                 } else {
-                    // No image selected or imageURL
                     Circle()
                         .fill(Color.gray.opacity(0.5))
                         .frame(width: 150, height: 150)
@@ -91,12 +93,29 @@ struct GroupSettingsView: View {
                 .padding(.horizontal)
                 .onChange(of: group.name) { newValue in
                     let debouncedUpdateName = debounce(0.5) {
-                        updateGroupName()
+                        // Only update if name is not empty
+                        if !group.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            updateGroupName()
+                        }
                     }
                     debouncedUpdateName()
                 }
+                .alert(isPresented: $showingDeleteConfirmation) {
+                    print("Delete confirmation alert should be showing") // This should print if the alert is being triggered
+                    return Alert(
+                        title: Text("Delete Group"),
+                        message: Text("Are you sure you want to delete this group?"),
+                        primaryButton: .destructive(Text("Delete")) {
+                            print("Delete confirmed") // Confirms that the delete button in the alert is pressed
+                            callDeleteGroupFunction()
+                        },
+                        secondaryButton: .cancel{
+                            print("Delete canceled") // Confirms that the cancel button in the alert is pressed
+                        }
+                    )
+                }
 
-            // Group Description (debounced update)
+            // Group Description (debounced update, no empty validation)
             TextField("Group Description", text: $group.description)
                 .textFieldStyle(RoundedBorderTextFieldStyle())
                 .padding(.horizontal)
@@ -150,7 +169,11 @@ struct GroupSettingsView: View {
                 }
 
                 // Delete Group Button
-                Button(action: deleteGroup) {
+                Button(action: {
+                    print("Delete group button pressed")
+                    showingDeleteConfirmation = true
+                    print("Delete button pressed")
+                }) {
                     Text("Delete Group")
                         .frame(maxWidth: .infinity)
                         .padding()
@@ -170,8 +193,18 @@ struct GroupSettingsView: View {
         }
         .padding()
         .navigationTitle("Group Settings")
-        .onAppear(perform: startListening)
-        .onDisappear(perform: stopListening)
+        .onAppear {
+            startListening()
+            originalGroupName = group.name // Store original group name on view appear
+        }
+        .onDisappear {
+            stopListening()
+            // Revert group name if left blank
+            if group.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                group.name = originalGroupName
+                updateGroupName() // Update Firestore with the original name
+            }
+        }
         .sheet(isPresented: $showingImagePicker) {
             ImagePicker(selectedImage: $selectedImage)
                 .onDisappear {
@@ -186,9 +219,32 @@ struct GroupSettingsView: View {
         .alert(isPresented: $showingError) {
             Alert(title: Text("Notification"), message: Text(errorMessage), dismissButton: .default(Text("OK")))
         }
+        .background(
+            NavigationLink(destination: MyGroupsView(), isActive: $navigateToMyGroups) {
+                EmptyView()
+            }
+        )
     }
 
     // MARK: - Functions
+    
+    func callDeleteGroupFunction() {
+        let groupId = group.id
+
+        // Call the Firebase Cloud Function to delete the group
+        let functions = Functions.functions()
+        functions.httpsCallable("deleteGroup").call(["groupId": groupId]) { result, error in
+            if let error = error {
+                errorMessage = "Failed to delete group: \(error.localizedDescription)"
+                showingError = true
+                return
+            }
+
+            // Successfully deleted group
+            presentationMode.wrappedValue.dismiss()
+        }
+    }
+
 
 
     func isAdmin() -> Bool {
@@ -196,34 +252,18 @@ struct GroupSettingsView: View {
     }
 
     func updateGroupName() {
-           let trimmedName = group.name.trimmingCharacters(in: .whitespacesAndNewlines)
-           
-           guard !trimmedName.isEmpty else {
-               errorMessage = "Group name cannot be empty."
-               showingError = true
-               return
-           }
-           
-           let db = Firestore.firestore()
-           db.collection("groups").document(group.id).updateData(["name": trimmedName]) { error in
-               if let error = error {
-                   errorMessage = "Failed to update group name: \(error.localizedDescription)"
-                   showingError = true
-               }
-           }
-       }
+            let db = Firestore.firestore()
+            db.collection("groups").document(group.id).updateData(["name": group.name]) { error in
+                if let error = error {
+                    errorMessage = "Failed to update group name: \(error.localizedDescription)"
+                    showingError = true
+                }
+            }
+        }
     
     func updateGroupDescription() {
-            let trimmedDescription = group.description.trimmingCharacters(in: .whitespacesAndNewlines)
-            
-            guard !trimmedDescription.isEmpty else {
-                errorMessage = "Group description cannot be empty."
-                showingError = true
-                return
-            }
-            
             let db = Firestore.firestore()
-            db.collection("groups").document(group.id).updateData(["description": trimmedDescription]) { error in
+            db.collection("groups").document(group.id).updateData(["description": group.description]) { error in
                 if let error = error {
                     errorMessage = "Failed to update group description: \(error.localizedDescription)"
                     showingError = true
@@ -264,70 +304,56 @@ struct GroupSettingsView: View {
     }
 
     func leaveGroup() {
-        guard let userId = Auth.auth().currentUser?.uid, !group.id.isEmpty else { return }
+            guard let userId = Auth.auth().currentUser?.uid, !group.id.isEmpty else { return }
 
-        let db = Firestore.firestore()
-        let groupRef = db.collection("groups").document(group.id)
-        let memberRef = groupRef.collection("members").document(userId)
+            let db = Firestore.firestore()
+            let groupRef = db.collection("groups").document(group.id)
+            let memberRef = groupRef.collection("members").document(userId)
 
-        memberRef.getDocument { document, error in
-            if let error = error {
-                errorMessage = "Failed to leave group: \(error.localizedDescription)"
-                showingError = true
-                return
-            }
-
-            if let document = document, document.exists {
-                // Check if the user is the owner
-                if group.ownerId == userId {
-                    // Optionally, handle ownership transfer or deletion
-                    // For simplicity, we'll prevent the owner from leaving
-                    errorMessage = "Owner cannot leave the group. Transfer ownership before leaving."
+            memberRef.getDocument { document, error in
+                if let error = error {
+                    errorMessage = "Failed to leave group: \(error.localizedDescription)"
                     showingError = true
                     return
                 }
 
-                // Remove user from group's members subcollection
-                memberRef.delete { error in
-                    if let error = error {
-                        errorMessage = "Failed to leave group: \(error.localizedDescription)"
+                if let document = document, document.exists {
+                    // Check if the user is the owner
+                    if group.ownerId == userId {
+                        errorMessage = "Owner cannot leave the group. Transfer ownership before leaving."
                         showingError = true
-                    } else {
-                        presentationMode.wrappedValue.dismiss()
+                        return
                     }
+
+                    // Remove user from group's members subcollection
+                    memberRef.delete { error in
+                        if let error = error {
+                            errorMessage = "Failed to leave group: \(error.localizedDescription)"
+                            showingError = true
+                        } else {
+                            navigateToMyGroups = true // Trigger navigation
+                        }
+                    }
+                } else {
+                    errorMessage = "You are not a member of this group."
+                    showingError = true
                 }
-            } else {
-                errorMessage = "You are not a member of this group."
-                showingError = true
             }
         }
-    }
 
 
     func deleteGroup() {
-        guard !group.id.isEmpty else { return }
-        let db = Firestore.firestore()
-        let storageRef = Storage.storage().reference().child("groupImages/\(group.id).jpg")
-
-        // Delete the group image from storage
-        storageRef.delete { error in
-            if let error = error {
-                print("Failed to delete group image: \(error.localizedDescription)")
-                // Continue with group deletion even if image deletion fails
+            // Call the Firebase Cloud Function to delete the group
+            functions.httpsCallable("deleteGroup").call(["groupId": group.id]) { result, error in
+                if let error = error {
+                    errorMessage = "Failed to delete group: \(error.localizedDescription)"
+                    showingError = true
+                } else {
+                    // After successful deletion, navigate back to MyGroupsView
+                    navigateToMyGroups = true
+                }
             }
         }
-
-        // Delete the group document
-        db.collection("groups").document(group.id).delete { error in
-            if let error = error {
-                errorMessage = "Failed to delete group: \(error.localizedDescription)"
-                showingError = true
-            } else {
-                // Optionally, delete any other associated data
-                presentationMode.wrappedValue.dismiss()
-            }
-        }
-    }
 
     func fetchMembers() {
         // Since members are now managed in GroupDetailView, this function can be removed or repurposed.

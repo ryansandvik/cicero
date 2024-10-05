@@ -19,11 +19,58 @@ const logger = require("firebase-functions/logger");
 // });
 
 // functions/index.js
-// functions/index.js
 
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 admin.initializeApp();
+
+const db = admin.firestore();
+const storage = admin.storage();
+
+exports.deleteGroup = functions.https.onCall(async (data, context) => {
+    const groupId = data.groupId;
+
+    if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated to delete a group.');
+    }
+
+    try {
+        // 1. Get the group document
+        const groupDocRef = db.collection('groups').doc(groupId);
+        const groupDoc = await groupDocRef.get();
+
+        if (!groupDoc.exists) {
+            throw new functions.https.HttpsError('not-found', 'Group does not exist.');
+        }
+
+        // 2. Delete all subcollections (e.g., members)
+        const membersCollectionRef = groupDocRef.collection('members');
+        const membersSnapshot = await membersCollectionRef.get();
+        
+        const deleteMemberPromises = [];
+        membersSnapshot.forEach((doc) => {
+            deleteMemberPromises.push(doc.ref.delete());
+        });
+        await Promise.all(deleteMemberPromises);
+
+        // 3. Optionally delete group image from Firebase Storage
+        const groupData = groupDoc.data();
+        if (groupData.imageURL) {
+            const imageRef = storage.bucket().file(`groupImages/${groupId}.jpg`);
+            await imageRef.delete().catch((error) => {
+                console.error("Error deleting image:", error.message);
+            });
+        }
+
+        // 4. Delete the group document itself
+        await groupDocRef.delete();
+
+        return { message: "Group deleted successfully." };
+    } catch (error) {
+        console.error("Error deleting group:", error.message);
+        throw new functions.https.HttpsError('internal', 'Failed to delete group.');
+    }
+});
 
 exports.joinGroup = functions.https.onCall(async (data, context) => {
     // Check if the user is authenticated
